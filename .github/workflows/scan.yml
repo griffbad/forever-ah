@@ -1,0 +1,40 @@
+name: AH scan
+
+on:
+  schedule:
+    - cron: "17 * * * *"     # every hour at :17 (GitHub may run a few minutes late)
+  workflow_dispatch:          # lets you click "Run workflow" by hand
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ah-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Scan the auction house
+        env:
+          BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+        # Change --region / --ruleset / --faction here if needed
+        run: python forever_ah.py scan --region eu --ruleset 2 --faction alliance
+
+      - name: Save history and report
+        run: |
+          git config user.name "ah-bot"
+          git config user.email "ah-bot@users.noreply.github.com"
+          cp report.html index.html
+          git add forever_ah.sqlite report.html index.html
+          git commit -m "AH scan $(date -u +%Y-%m-%dT%H:%MZ)" || echo "nothing changed"
+          git push
